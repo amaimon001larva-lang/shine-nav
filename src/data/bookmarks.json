@@ -1,0 +1,250 @@
+[
+  {
+    "id": "ai-tools",
+    "name": "AI工具",
+    "description": "常用 AI 创作、问答、效率与自动化工具",
+    "items": [
+      {
+        "id": "chatgpt",
+        "name": "ChatGPT",
+        "url": "https://chatgpt.com",
+        "description": "适合写作、代码、资料整理与日常问题处理的 AI 助手。",
+        "icon": "https://www.google.com/s2/favicons?domain=chatgpt.com&sz=64",
+        "tags": ["AI", "写作", "效率"]
+      },
+      {
+        "id": "claude",
+        "name": "Claude",
+        "url": "https://claude.ai",
+        "description": "长文本阅读、推理和内容打磨体验较好的 AI 工具。",
+        "icon": "https://www.google.com/s2/favicons?domain=claude.ai&sz=64",
+        "tags": ["AI", "长文本", "灵感"]
+      },
+      {
+        "id": "midjourney",
+        "name": "Midjourney",
+        "url": "https://www.midjourney.com",
+        "description": "用于视觉概念、插画、风格探索和参考图生成。",
+        "icon": "https://www.google.com/s2/favicons?domain=midjourney.com&sz=64",
+        "tags": ["AI绘图", "视觉", "灵感"]
+      }
+    ]
+  },
+  {
+    "id": "design-resources",
+    "name": "设计资源",
+    "description": "设计工具、协作平台与设计系统资源",
+    "items": [
+      {
+        "id": "figma",
+        "name": "Figma",
+        "url": "https://www.figma.com",
+        "description": "界面设计、原型、设计系统和团队协作平台。",
+        "icon": "https://www.google.com/s2/favicons?domain=figma.com&sz=64",
+        "tags": ["设计工具", "原型", "协作"]
+      },
+      {
+        "id": "mastergo",
+        "name": "MasterGo",
+        "url": "https://mastergo.com",
+        "description": "面向中文团队的在线设计协作与交付工具。",
+        "icon": "https://www.google.com/s2/favicons?domain=mastergo.com&sz=64",
+        "tags": ["设计工具", "中文", "协作"]
+      },
+      {
+        "id": "iconfont",
+        "name": "Iconfont",
+        "url": "https://www.iconfont.cn",
+        "description": "阿里巴巴矢量图标库，适合查找和管理项目图标。",
+        "icon": "https://www.google.com/s2/favicons?domain=iconfont.cn&sz=64",
+        "tags": ["图标", "素材", "矢量"]
+      }
+    ]
+  },
+  {
+    "id": "ui-inspiration",
+    "name": "UI灵感",
+    "description": "界面灵感、产品截图与优秀案例",
+    "items": [
+      {
+        "id": "dribbble",
+        "name": "Dribbble",
+        "url": "https://dribbble.com",
+        "description": "浏览全球设计师分享的视觉探索和 UI 作品。",
+        "icon": "https://www.google.com/s2/favicons?domain=dribbble.com&sz=64",
+        "tags": ["灵感", "UI", "视觉"]
+      },
+      {
+        "id": "mobbin",
+        "name": "Mobbin",
+        "url": "https://mobbin.com",
+        "description": "高质量移动端和 Web 产品界面截图库。",
+        "icon": "https://www.google.com/s2/favicons?domain=mobbin.com&sz=64",
+        "tags": ["截图", "产品", "参考"]
+      },
+      {
+        "id": "godly",
+        "name": "Godly",
+        "url": "https://godly.website",
+        "description": "收集具有现代视觉表达的网站设计案例。",
+        "icon": "https://www.google.com/s2/favicons?domain=godly.website&sz=64",
+        "tags": ["网页", "灵感", "视觉"]
+      }
+    ]
+  },
+  {
+    "id": "frontend-components",
+    "name": "前端组件",
+    "description": "组件库、模板与前端 UI 基础设施",
+    "items": [
+      {
+        "id": "element-plus",
+        "name": "Element Plus",
+        "url": "https://element-plus.org",
+        "description": "Vue 3 生态常用桌面端组件库，适合中后台界面。",
+        "icon": "https://www.google.com/s2/favicons?domain=element-plus.org&sz=64",
+        "tags": ["Vue", "组件库", "中后台"]
+      },
+      {
+        "id": "ant-design-vue",
+        "name": "Ant Design Vue",
+        "url": "https://antdv.com",
+        "description": "企业级 Vue UI 组件库，组件完整且文档清晰。",
+        "icon": "https://www.google.com/s2/favicons?domain=antdv.com&sz=64",
+        "tags": ["Vue", "组件", "企业级"]
+      },
+      {
+        "id": "shadcn-vue",
+        "name": "shadcn-vue",
+        "url": "https://www.shadcn-vue.com",
+        "description": "可复制到项目内定制的现代 Vue 组件集合。",
+        "icon": "https://www.google.com/s2/favicons?domain=shadcn-vue.com&sz=64",
+        "tags": ["Vue", "Tailwind", "组件"]
+      }
+    ]
+  },
+  {
+    "id": "dev-docs",
+    "name": "开发文档",
+    "description": "前端开发、接口、框架与工程化文档",
+    "items": [
+      {
+        "id": "vue",
+        "name": "Vue",
+        "url": "https://vuejs.org",
+        "description": "Vue 3 官方文档，包含组合式 API、组件和生态指南。",
+        "icon": "https://www.google.com/s2/favicons?domain=vuejs.org&sz=64",
+        "tags": ["Vue", "前端", "文档"]
+      },
+      {
+        "id": "vite",
+        "name": "Vite",
+        "url": "https://vite.dev",
+        "description": "现代前端构建工具，开发启动快，配置简洁。",
+        "icon": "https://www.google.com/s2/favicons?domain=vite.dev&sz=64",
+        "tags": ["构建", "前端", "文档"]
+      },
+      {
+        "id": "mdn",
+        "name": "MDN Web Docs",
+        "url": "https://developer.mozilla.org",
+        "description": "查询 Web 标准、CSS、JavaScript 和浏览器 API。",
+        "icon": "https://www.google.com/s2/favicons?domain=developer.mozilla.org&sz=64",
+        "tags": ["Web", "JavaScript", "CSS"]
+      }
+    ]
+  },
+  {
+    "id": "gis-tools",
+    "name": "GIS工具",
+    "description": "地图可视化、空间数据和地理开发资源",
+    "items": [
+      {
+        "id": "mapbox",
+        "name": "Mapbox",
+        "url": "https://www.mapbox.com",
+        "description": "地图样式、数据可视化和位置服务开发平台。",
+        "icon": "https://www.google.com/s2/favicons?domain=mapbox.com&sz=64",
+        "tags": ["地图", "可视化", "GIS"]
+      },
+      {
+        "id": "cesium",
+        "name": "Cesium",
+        "url": "https://cesium.com",
+        "description": "三维地球、城市模型和地理空间应用开发工具。",
+        "icon": "https://www.google.com/s2/favicons?domain=cesium.com&sz=64",
+        "tags": ["3D", "地图", "GIS"]
+      },
+      {
+        "id": "geojson",
+        "name": "geojson.io",
+        "url": "https://geojson.io",
+        "description": "在线编辑、查看和导出 GeoJSON 数据。",
+        "icon": "https://www.google.com/s2/favicons?domain=geojson.io&sz=64",
+        "tags": ["GeoJSON", "数据", "地图"]
+      }
+    ]
+  },
+  {
+    "id": "image-assets",
+    "name": "图片素材",
+    "description": "免版权图片、插画、纹理与图像处理资源",
+    "items": [
+      {
+        "id": "unsplash",
+        "name": "Unsplash",
+        "url": "https://unsplash.com",
+        "description": "高质量摄影图片素材，适合网页和视觉提案。",
+        "icon": "https://www.google.com/s2/favicons?domain=unsplash.com&sz=64",
+        "tags": ["图片", "摄影", "素材"]
+      },
+      {
+        "id": "pexels",
+        "name": "Pexels",
+        "url": "https://www.pexels.com",
+        "description": "免费图片和视频素材库，内容分类清晰。",
+        "icon": "https://www.google.com/s2/favicons?domain=pexels.com&sz=64",
+        "tags": ["图片", "视频", "素材"]
+      },
+      {
+        "id": "removebg",
+        "name": "remove.bg",
+        "url": "https://www.remove.bg",
+        "description": "快速移除图片背景，适合制作简单视觉素材。",
+        "icon": "https://www.google.com/s2/favicons?domain=remove.bg&sz=64",
+        "tags": ["抠图", "图片", "效率"]
+      }
+    ]
+  },
+  {
+    "id": "daily-sites",
+    "name": "常用网站",
+    "description": "日常工作、资料管理与效率入口",
+    "items": [
+      {
+        "id": "github",
+        "name": "GitHub",
+        "url": "https://github.com",
+        "description": "代码托管、开源项目浏览与协作开发平台。",
+        "icon": "https://www.google.com/s2/favicons?domain=github.com&sz=64",
+        "tags": ["代码", "开源", "协作"]
+      },
+      {
+        "id": "notion",
+        "name": "Notion",
+        "url": "https://www.notion.so",
+        "description": "个人知识管理、项目记录和文档协作工具。",
+        "icon": "https://www.google.com/s2/favicons?domain=notion.so&sz=64",
+        "tags": ["笔记", "文档", "效率"]
+      },
+      {
+        "id": "yuque",
+        "name": "语雀",
+        "url": "https://www.yuque.com",
+        "description": "中文团队常用知识库和文档写作平台。",
+        "icon": "https://www.google.com/s2/favicons?domain=yuque.com&sz=64",
+        "tags": ["文档", "知识库", "中文"]
+      }
+    ]
+  }
+]

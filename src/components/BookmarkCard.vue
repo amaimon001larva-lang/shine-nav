@@ -1,0 +1,26 @@
+<script setup lang="ts">
+import type { BookmarkItem } from '../types/bookmark';
+
+defineProps<{
+  bookmark: BookmarkItem;
+}>();
+</script>
+
+<template>
+  <article class="bookmark-card">
+    <div class="bookmark-card__top">
+      <img class="bookmark-card__icon" :src="bookmark.icon" :alt="`${bookmark.name} 图标`" />
+      <div class="bookmark-card__title">
+        <h3>{{ bookmark.name }}</h3>
+        <p>{{ bookmark.description }}</p>
+      </div>
+    </div>
+
+    <div class="bookmark-card__footer">
+      <div class="tag-list" aria-label="标签">
+        <span v-for="tag in bookmark.tags" :key="tag" class="tag">{{ tag }}</span>
+      </div>
+      <a class="visit-link" :href="bookmark.url" target="_blank" rel="noreferrer">访问</a>
+    </div>
+  </article>
+</template>
