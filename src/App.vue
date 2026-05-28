@@ -3,21 +3,38 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 import HeaderSearch from './components/HeaderSearch.vue';
 import CategoryNav from './components/CategoryNav.vue';
 import BookmarkSection from './components/BookmarkSection.vue';
+import AddBookmarkDialog from './components/AddBookmarkDialog.vue';
 import bookmarkData from './data/bookmarks.json';
-import type { BookmarkCategory } from './types/bookmark';
+import type { BookmarkCategory, UserBookmarkInput } from './types/bookmark';
+import {
+  addUserBookmark,
+  buildUserBookmark,
+  mergeCategories,
+  parseImportedCategories,
+  readUserCategories,
+  removeUserBookmark,
+  saveUserCategories,
+} from './utils/bookmarkStorage';
 
-const categories = bookmarkData as BookmarkCategory[];
+const defaultCategories = bookmarkData as BookmarkCategory[];
+const userCategories = ref<BookmarkCategory[]>([]);
 const searchText = ref('');
-const activeCategoryId = ref(categories[0]?.id ?? '');
+const activeCategoryId = ref(defaultCategories[0]?.id ?? '');
+const isAddDialogOpen = ref(false);
+const importInput = ref<HTMLInputElement | null>(null);
 
 const normalizedSearch = computed(() => searchText.value.trim().toLowerCase());
+const categories = computed(() => mergeCategories(defaultCategories, userCategories.value));
+const userBookmarkCount = computed(() =>
+  userCategories.value.reduce((total, category) => total + category.items.length, 0),
+);
 
 const filteredCategories = computed(() => {
   if (!normalizedSearch.value) {
-    return categories;
+    return categories.value;
   }
 
-  return categories
+  return categories.value
     .map((category) => {
       const items = category.items.filter((bookmark) => {
         const searchableText = [
@@ -40,6 +57,66 @@ const filteredCategories = computed(() => {
 const visibleBookmarkCount = computed(() =>
   filteredCategories.value.reduce((total, category) => total + category.items.length, 0),
 );
+
+function persistUserCategories(nextCategories: BookmarkCategory[]) {
+  userCategories.value = nextCategories;
+  saveUserCategories(nextCategories);
+}
+
+function handleAddBookmark(input: UserBookmarkInput) {
+  const bookmark = buildUserBookmark(input);
+  const nextCategories = addUserBookmark(
+    userCategories.value,
+    input.categoryId,
+    input.categoryName,
+    bookmark,
+  );
+
+  persistUserCategories(nextCategories);
+  isAddDialogOpen.value = false;
+  activeCategoryId.value = input.categoryId;
+  requestAnimationFrame(() => scrollToCategory(input.categoryId));
+}
+
+function handleDeleteBookmark(id: string) {
+  persistUserCategories(removeUserBookmark(userCategories.value, id));
+}
+
+function exportUserBookmarks() {
+  const blob = new Blob([JSON.stringify(userCategories.value, null, 2)], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'bookmarks-user.json';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function openImportDialog() {
+  importInput.value?.click();
+}
+
+function handleImport(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const importedCategories = parseImportedCategories(String(reader.result || '[]'));
+      persistUserCategories(importedCategories);
+      activeCategoryId.value = importedCategories[0]?.id || defaultCategories[0]?.id || '';
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '导入失败，请检查 JSON 文件');
+    } finally {
+      input.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
 
 function scrollToCategory(id: string) {
   activeCategoryId.value = id;
@@ -68,6 +145,7 @@ function handleScroll() {
 }
 
 onMounted(() => {
+  userCategories.value = readUserCategories();
   window.addEventListener('scroll', handleScroll, { passive: true });
 });
 
@@ -78,7 +156,20 @@ onUnmounted(() => {
 
 <template>
   <div class="app-shell">
-    <HeaderSearch v-model="searchText" />
+    <HeaderSearch
+      v-model="searchText"
+      :user-bookmark-count="userBookmarkCount"
+      @add="isAddDialogOpen = true"
+      @export="exportUserBookmarks"
+      @import="openImportDialog"
+    />
+    <input
+      ref="importInput"
+      class="visually-hidden"
+      type="file"
+      accept="application/json,.json"
+      @change="handleImport"
+    />
 
     <main>
       <section class="hero-panel">
@@ -90,7 +181,7 @@ onUnmounted(() => {
         <div class="hero-meta">
           <span>{{ categories.length }} 个分类</span>
           <span>{{ visibleBookmarkCount }} 个站点</span>
-          <span>本地 JSON 管理</span>
+          <span>{{ userBookmarkCount }} 个本地新增</span>
         </div>
       </section>
 
@@ -109,6 +200,7 @@ onUnmounted(() => {
               v-for="category in filteredCategories"
               :key="category.id"
               :category="category"
+              @delete="handleDeleteBookmark"
             />
           </template>
           <section v-else class="empty-state">
@@ -118,5 +210,12 @@ onUnmounted(() => {
         </div>
       </div>
     </main>
+
+    <AddBookmarkDialog
+      :open="isAddDialogOpen"
+      :categories="categories"
+      @close="isAddDialogOpen = false"
+      @submit="handleAddBookmark"
+    />
   </div>
 </template>

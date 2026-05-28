@@ -5,6 +5,7 @@ export interface BookmarkItem {
   description: string;
   icon: string;
   tags: string[];
+  source?: 'default' | 'user';
 }
 
 export interface BookmarkCategory {
@@ -12,4 +13,14 @@ export interface BookmarkCategory {
   name: string;
   description: string;
   items: BookmarkItem[];
+}
+
+export interface UserBookmarkInput {
+  name: string;
+  url: string;
+  categoryId: string;
+  categoryName: string;
+  description: string;
+  tags: string[];
+  icon: string;
 }

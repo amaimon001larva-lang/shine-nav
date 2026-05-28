@@ -5,6 +5,10 @@ import BookmarkCard from './BookmarkCard.vue';
 defineProps<{
   category: BookmarkCategory;
 }>();
+
+const emit = defineEmits<{
+  delete: [id: string];
+}>();
 </script>
 
 <template>
@@ -18,7 +22,12 @@ defineProps<{
     </div>
 
     <div class="bookmark-grid">
-      <BookmarkCard v-for="bookmark in category.items" :key="bookmark.id" :bookmark="bookmark" />
+      <BookmarkCard
+        v-for="bookmark in category.items"
+        :key="bookmark.id"
+        :bookmark="bookmark"
+        @delete="emit('delete', $event)"
+      />
     </div>
   </section>
 </template>

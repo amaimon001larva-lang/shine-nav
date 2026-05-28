@@ -4,6 +4,10 @@ import type { BookmarkItem } from '../types/bookmark';
 defineProps<{
   bookmark: BookmarkItem;
 }>();
+
+const emit = defineEmits<{
+  delete: [id: string];
+}>();
 </script>
 
 <template>
@@ -20,7 +24,17 @@ defineProps<{
       <div class="tag-list" aria-label="标签">
         <span v-for="tag in bookmark.tags" :key="tag" class="tag">{{ tag }}</span>
       </div>
-      <a class="visit-link" :href="bookmark.url" target="_blank" rel="noreferrer">访问</a>
+      <div class="card-actions">
+        <button
+          v-if="bookmark.source === 'user'"
+          class="delete-link"
+          type="button"
+          @click="emit('delete', bookmark.id)"
+        >
+          删除
+        </button>
+        <a class="visit-link" :href="bookmark.url" target="_blank" rel="noreferrer">访问</a>
+      </div>
     </div>
   </article>
 </template>

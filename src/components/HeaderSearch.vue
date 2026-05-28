@@ -1,5 +1,15 @@
 <script setup lang="ts">
 const model = defineModel<string>({ required: true });
+
+defineProps<{
+  userBookmarkCount: number;
+}>();
+
+const emit = defineEmits<{
+  add: [];
+  export: [];
+  import: [];
+}>();
 </script>
 
 <template>
@@ -12,14 +22,29 @@ const model = defineModel<string>({ required: true });
       </div>
     </div>
 
-    <label class="search-box" aria-label="搜索书签">
-      <span class="search-icon">⌕</span>
-      <input
-        v-model="model"
-        type="search"
-        placeholder="搜索网站名称、描述或标签"
-        autocomplete="off"
-      />
-    </label>
+    <div class="header-actions">
+      <label class="search-box" aria-label="搜索书签">
+        <span class="search-icon">⌕</span>
+        <input
+          v-model="model"
+          type="search"
+          placeholder="搜索网站名称、描述或标签"
+          autocomplete="off"
+        />
+      </label>
+
+      <div class="toolbar-actions">
+        <button class="secondary-button" type="button" @click="emit('import')">导入 JSON</button>
+        <button
+          class="secondary-button"
+          type="button"
+          :disabled="userBookmarkCount === 0"
+          @click="emit('export')"
+        >
+          导出 JSON
+        </button>
+        <button class="primary-button" type="button" @click="emit('add')">添加网站</button>
+      </div>
+    </div>
   </header>
 </template>
