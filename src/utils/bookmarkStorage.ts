@@ -4,6 +4,7 @@ import {
   readJson,
   readLegacyUserBookmarks,
   SORT_ORDERS_KEY,
+  SETTINGS_KEY,
   USER_BOOKMARKS_KEY,
   writeJson,
 } from './storage';
@@ -14,6 +15,18 @@ import { normalizeUrl } from './storage';
 export { createCategoryId, normalizeUrl, getFaviconUrl };
 
 export type SortOrders = Record<string, string[]>;
+
+export interface BookmarkSettings {
+  deletedBookmarkIds: string[];
+  hiddenCategoryIds: string[];
+  categoryNameOverrides: Record<string, string>;
+}
+
+export const DEFAULT_SETTINGS: BookmarkSettings = {
+  deletedBookmarkIds: [],
+  hiddenCategoryIds: [],
+  categoryNameOverrides: {},
+};
 
 function cloneCategories(categories: BookmarkCategory[]) {
   return categories.map((category) => ({
@@ -104,6 +117,17 @@ export function readSortOrders(): SortOrders {
 
 export function saveSortOrders(sortOrders: SortOrders) {
   writeJson(SORT_ORDERS_KEY, sortOrders);
+}
+
+export function readSettings(): BookmarkSettings {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...readJson<Partial<BookmarkSettings>>(SETTINGS_KEY, DEFAULT_SETTINGS),
+  };
+}
+
+export function saveSettings(settings: BookmarkSettings) {
+  writeJson(SETTINGS_KEY, settings);
 }
 
 export function buildUserBookmark(input: UserBookmarkInput): BookmarkItem {
@@ -201,6 +225,22 @@ export function removeUserBookmark(categories: BookmarkCategory[], bookmarkId: s
 
 export function removeUserCategory(categories: BookmarkCategory[], categoryId: string) {
   return cloneCategories(categories).filter((category) => category.id !== categoryId);
+}
+
+export function renameUserCategory(
+  categories: BookmarkCategory[],
+  categoryId: string,
+  nextName: string,
+) {
+  return cloneCategories(categories).map((category) =>
+    category.id === categoryId
+      ? {
+          ...category,
+          name: nextName,
+          items: category.items.map((bookmark) => ({ ...bookmark, category: nextName })),
+        }
+      : category,
+  );
 }
 
 export function removeUserTag(categories: BookmarkCategory[], tag: string) {

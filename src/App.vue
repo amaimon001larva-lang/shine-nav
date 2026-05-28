@@ -16,21 +16,32 @@ import {
   buildUserBookmark,
   mergeCategories,
   parseImportedCategories,
+  readSettings,
   readSortOrders,
   readUserCategories,
   removeUserBookmark,
   removeUserCategory,
   removeUserTag,
+  renameUserCategory,
+  saveSettings,
   saveSortOrders,
   saveUserCategories,
+  type BookmarkSettings,
   type SortOrders,
 } from './utils/bookmarkStorage';
 
 const defaultCategories = normalizeCategories(bookmarkData as BookmarkCategory[], 'default');
 const userCategories = ref<BookmarkCategory[]>([]);
 const sortOrders = ref<SortOrders>({});
+const settings = ref<BookmarkSettings>({
+  deletedBookmarkIds: [],
+  hiddenCategoryIds: [],
+  categoryNameOverrides: {},
+});
 const searchText = ref('');
 const activeCategoryId = ref(defaultCategories[0]?.id ?? '');
+const editMode = ref(false);
+const draggedBookmark = ref<{ categoryId: string; id: string } | null>(null);
 const isAddDialogOpen = ref(false);
 const importInput = ref<HTMLInputElement | null>(null);
 const chromeImportInput = ref<HTMLInputElement | null>(null);
@@ -40,9 +51,20 @@ const duplicateChromeUrls = ref<Set<string>>(new Set());
 const selectedTags = ref<string[]>([]);
 
 const normalizedSearch = computed(() => searchText.value.trim().toLowerCase());
-const categories = computed(() =>
-  mergeCategories(defaultCategories, userCategories.value, sortOrders.value),
-);
+const categories = computed(() => {
+  return mergeCategories(defaultCategories, userCategories.value, sortOrders.value)
+    .filter((category) => !settings.value.hiddenCategoryIds.includes(category.id))
+    .map((category) => ({
+      ...category,
+      name: settings.value.categoryNameOverrides[category.id] || category.name,
+      items: category.items
+        .filter((bookmark) => !settings.value.deletedBookmarkIds.includes(bookmark.id))
+        .map((bookmark) => ({
+          ...bookmark,
+          category: settings.value.categoryNameOverrides[category.id] || bookmark.category,
+        })),
+    }));
+});
 const userBookmarkCount = computed(() =>
   userCategories.value.reduce((total, category) => total + category.items.length, 0),
 );
@@ -68,8 +90,6 @@ const userTags = computed(() => {
   });
   return Array.from(tags);
 });
-const hasSearchFilter = computed(() => Boolean(normalizedSearch.value));
-const showSortActions = computed(() => !normalizedSearch.value && selectedTags.value.length === 0);
 
 const filteredCategories = computed(() => {
   return categories.value
@@ -92,7 +112,12 @@ const filteredCategories = computed(() => {
 
       return { ...category, items };
     })
-    .filter((category) => category.items.length > 0);
+    .filter((category) => {
+      if (normalizedSearch.value || selectedTags.value.length) {
+        return category.items.length > 0;
+      }
+      return true;
+    });
 });
 
 const visibleBookmarkCount = computed(() =>
@@ -107,6 +132,11 @@ function persistUserCategories(nextCategories: BookmarkCategory[]) {
 function persistSortOrders(nextSortOrders: SortOrders) {
   sortOrders.value = nextSortOrders;
   saveSortOrders(nextSortOrders);
+}
+
+function persistSettings(nextSettings: BookmarkSettings) {
+  settings.value = nextSettings;
+  saveSettings(nextSettings);
 }
 
 function handleAddBookmark(input: UserBookmarkInput) {
@@ -125,20 +155,80 @@ function handleAddBookmark(input: UserBookmarkInput) {
 }
 
 function handleDeleteBookmark(id: string) {
-  persistUserCategories(removeUserBookmark(userCategories.value, id));
+  const existsInUser = userCategories.value.some((category) =>
+    category.items.some((bookmark) => bookmark.id === id),
+  );
+
+  if (existsInUser) {
+    persistUserCategories(removeUserBookmark(userCategories.value, id));
+    return;
+  }
+
+  persistSettings({
+    ...settings.value,
+    deletedBookmarkIds: Array.from(new Set([...settings.value.deletedBookmarkIds, id])),
+  });
 }
 
 function handleDeleteCategory(categoryId: string) {
   const category = categories.value.find((item) => item.id === categoryId);
   if (!category) return;
-  const confirmed = window.confirm(`删除「${category.name}」分类中的本地书签？默认书签不会被删除。`);
+  const confirmed = window.confirm(`删除「${category.name}」分类？其中的本地书签会移除，默认分类会在当前浏览器隐藏。`);
   if (!confirmed) return;
 
-  persistUserCategories(removeUserCategory(userCategories.value, categoryId));
+  if (userCategoryIds.value.has(categoryId)) {
+    persistUserCategories(removeUserCategory(userCategories.value, categoryId));
+  } else {
+    persistSettings({
+      ...settings.value,
+      hiddenCategoryIds: Array.from(new Set([...settings.value.hiddenCategoryIds, categoryId])),
+    });
+  }
+
   const { [categoryId]: _removed, ...restSortOrders } = sortOrders.value;
   persistSortOrders(restSortOrders);
   if (activeCategoryId.value === categoryId) {
-    activeCategoryId.value = defaultCategories[0]?.id ?? '';
+    activeCategoryId.value = categories.value[0]?.id ?? '';
+  }
+}
+
+function handleAddCategory() {
+  const name = window.prompt('请输入新分类名称');
+  const trimmedName = name?.trim();
+  if (!trimmedName) return;
+
+  const id = `user-${Date.now()}`;
+  persistUserCategories([
+    ...userCategories.value,
+    {
+      id,
+      name: trimmedName,
+      description: '你手动新增的个人书签分类',
+      items: [],
+    },
+  ]);
+  activeCategoryId.value = id;
+  requestAnimationFrame(() => scrollToCategory(id));
+}
+
+function handleRenameCategory(categoryId: string) {
+  const category = categories.value.find((item) => item.id === categoryId);
+  if (!category) return;
+
+  const name = window.prompt('请输入新的分类名称', category.name);
+  const trimmedName = name?.trim();
+  if (!trimmedName || trimmedName === category.name) return;
+
+  if (userCategoryIds.value.has(categoryId)) {
+    persistUserCategories(renameUserCategory(userCategories.value, categoryId, trimmedName));
+  } else {
+    persistSettings({
+      ...settings.value,
+      categoryNameOverrides: {
+        ...settings.value.categoryNameOverrides,
+        [categoryId]: trimmedName,
+      },
+    });
   }
 }
 
@@ -150,21 +240,37 @@ function handleDeleteTag(tag: string) {
   selectedTags.value = selectedTags.value.filter((item) => item !== tag);
 }
 
-function handleMoveBookmark(categoryId: string, bookmarkId: string, direction: 'up' | 'down') {
+function handleDropBookmark(categoryId: string, targetBookmarkId: string) {
+  const dragged = draggedBookmark.value;
+  draggedBookmark.value = null;
+  if (!dragged || dragged.categoryId !== categoryId || dragged.id === targetBookmarkId) return;
+
   const category = categories.value.find((item) => item.id === categoryId);
   if (!category) return;
 
   const ids = category.items.map((bookmark) => bookmark.id);
-  const currentIndex = ids.indexOf(bookmarkId);
-  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+  const currentIndex = ids.indexOf(dragged.id);
+  const targetIndex = ids.indexOf(targetBookmarkId);
   if (currentIndex < 0 || targetIndex < 0 || targetIndex >= ids.length) return;
 
   const nextIds = [...ids];
-  [nextIds[currentIndex], nextIds[targetIndex]] = [nextIds[targetIndex], nextIds[currentIndex]];
+  const [movedId] = nextIds.splice(currentIndex, 1);
+  nextIds.splice(targetIndex, 0, movedId);
   persistSortOrders({
     ...sortOrders.value,
     [categoryId]: nextIds,
   });
+}
+
+function handleDragStart(categoryId: string, id: string) {
+  draggedBookmark.value = { categoryId, id };
+}
+
+function handleToggleLayout() {
+  editMode.value = !editMode.value;
+  if (!editMode.value) {
+    draggedBookmark.value = null;
+  }
 }
 
 function toggleTag(tag: string) {
@@ -277,6 +383,7 @@ function handleScroll() {
 onMounted(() => {
   userCategories.value = readUserCategories();
   sortOrders.value = readSortOrders();
+  settings.value = readSettings();
   window.addEventListener('scroll', handleScroll, { passive: true });
 });
 
@@ -290,10 +397,12 @@ onUnmounted(() => {
     <HeaderSearch
       v-model="searchText"
       :user-bookmark-count="userBookmarkCount"
+      :edit-mode="editMode"
       @add="isAddDialogOpen = true"
       @export="exportUserBookmarks"
       @import="openImportDialog"
       @import-chrome="openChromeImportDialog"
+      @toggle-layout="handleToggleLayout"
     />
     <input
       ref="importInput"
@@ -339,6 +448,9 @@ onUnmounted(() => {
             :categories="filteredCategories"
             :active-category-id="activeCategoryId"
             @select="scrollToCategory"
+            @add="handleAddCategory"
+            @rename="handleRenameCategory"
+            @delete="handleDeleteCategory"
           />
         </aside>
 
@@ -348,12 +460,12 @@ onUnmounted(() => {
               v-for="category in filteredCategories"
               :key="category.id"
               :category="category"
-              :show-sort-actions="showSortActions"
-              :can-delete-category="userCategoryIds.has(category.id)"
+              :edit-mode="editMode"
+              :can-delete-category="true"
               @delete="handleDeleteBookmark"
               @delete-category="handleDeleteCategory"
-              @move-up="(categoryId, id) => handleMoveBookmark(categoryId, id, 'up')"
-              @move-down="(categoryId, id) => handleMoveBookmark(categoryId, id, 'down')"
+              @drag-start="handleDragStart"
+              @drop="handleDropBookmark"
             />
           </template>
           <section v-else class="empty-state">

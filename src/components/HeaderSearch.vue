@@ -1,8 +1,11 @@
 <script setup lang="ts">
+import { ref } from 'vue';
+
 const model = defineModel<string>({ required: true });
 
 defineProps<{
   userBookmarkCount: number;
+  editMode: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -10,7 +13,17 @@ const emit = defineEmits<{
   export: [];
   import: [];
   importChrome: [];
+  toggleLayout: [];
 }>();
+
+const isImportMenuOpen = ref(false);
+
+function selectImport(action: 'add' | 'import' | 'importChrome') {
+  isImportMenuOpen.value = false;
+  if (action === 'add') emit('add');
+  if (action === 'import') emit('import');
+  if (action === 'importChrome') emit('importChrome');
+}
 </script>
 
 <template>
@@ -35,10 +48,23 @@ const emit = defineEmits<{
       </label>
 
       <div class="toolbar-actions">
-        <button class="secondary-button" type="button" @click="emit('importChrome')">
-          导入 Chrome 书签
+        <div class="dropdown">
+          <button
+            class="secondary-button"
+            type="button"
+            @click="isImportMenuOpen = !isImportMenuOpen"
+          >
+            导入网站
+          </button>
+          <div v-if="isImportMenuOpen" class="dropdown-menu">
+            <button type="button" @click="selectImport('importChrome')">导入 Chrome 书签</button>
+            <button type="button" @click="selectImport('import')">导入 JSON</button>
+            <button type="button" @click="selectImport('add')">添加网站</button>
+          </div>
+        </div>
+        <button class="secondary-button" type="button" @click="emit('toggleLayout')">
+          {{ editMode ? '保存布局' : '调整布局' }}
         </button>
-        <button class="secondary-button" type="button" @click="emit('import')">导入 JSON</button>
         <button
           class="secondary-button"
           type="button"
