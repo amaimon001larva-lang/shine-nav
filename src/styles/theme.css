@@ -346,6 +346,13 @@ button:disabled {
   font-size: 13px;
 }
 
+.section-actions {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 10px;
+}
+
 .bookmark-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -520,6 +527,9 @@ button:disabled {
 }
 
 .filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 7px 10px;
   color: #54708f;
   font-size: 13px;
@@ -533,6 +543,21 @@ button:disabled {
   color: #ffffff;
   background: var(--color-primary);
   border-color: var(--color-primary);
+}
+
+.filter-tag__remove {
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 999px;
+}
+
+.filter-tag__remove:hover {
+  background: rgba(255, 255, 255, 0.22);
 }
 
 .text-button {
@@ -895,6 +920,12 @@ button:disabled {
     align-items: flex-start;
     flex-direction: column;
     gap: 8px;
+  }
+
+  .section-actions {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .bookmark-grid {

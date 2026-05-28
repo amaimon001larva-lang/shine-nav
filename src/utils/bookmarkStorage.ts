@@ -199,6 +199,23 @@ export function removeUserBookmark(categories: BookmarkCategory[], bookmarkId: s
     .filter((category) => category.items.length > 0);
 }
 
+export function removeUserCategory(categories: BookmarkCategory[], categoryId: string) {
+  return cloneCategories(categories).filter((category) => category.id !== categoryId);
+}
+
+export function removeUserTag(categories: BookmarkCategory[], tag: string) {
+  return cloneCategories(categories)
+    .map((category) => ({
+      ...category,
+      items: category.items.map((bookmark) => ({
+        ...bookmark,
+        tags: bookmark.tags.filter((item) => item !== tag),
+        updatedAt: new Date().toISOString(),
+      })),
+    }))
+    .filter((category) => category.items.length > 0);
+}
+
 export function parseImportedCategories(value: string): BookmarkCategory[] {
   const parsed = JSON.parse(value) as BookmarkCategory[];
   if (!Array.isArray(parsed)) {

@@ -2,10 +2,12 @@
 defineProps<{
   tags: string[];
   selectedTags: string[];
+  deletableTags: string[];
 }>();
 
 const emit = defineEmits<{
   toggle: [tag: string];
+  delete: [tag: string];
   clear: [];
 }>();
 </script>
@@ -32,7 +34,18 @@ const emit = defineEmits<{
         type="button"
         @click="emit('toggle', tag)"
       >
-        {{ tag }}
+        <span>{{ tag }}</span>
+        <span
+          v-if="deletableTags.includes(tag)"
+          class="filter-tag__remove"
+          role="button"
+          tabindex="0"
+          :aria-label="`删除标签 ${tag}`"
+          @click.stop="emit('delete', tag)"
+          @keydown.enter.stop.prevent="emit('delete', tag)"
+        >
+          ×
+        </span>
       </button>
     </div>
   </section>

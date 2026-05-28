@@ -5,10 +5,12 @@ import BookmarkCard from './BookmarkCard.vue';
 defineProps<{
   category: BookmarkCategory;
   showSortActions: boolean;
+  canDeleteCategory: boolean;
 }>();
 
 const emit = defineEmits<{
   delete: [id: string];
+  deleteCategory: [categoryId: string];
   moveUp: [categoryId: string, id: string];
   moveDown: [categoryId: string, id: string];
 }>();
@@ -21,7 +23,17 @@ const emit = defineEmits<{
         <h2>{{ category.name }}</h2>
         <p>{{ category.description }}</p>
       </div>
-      <span>{{ category.items.length }} 个站点</span>
+      <div class="section-actions">
+        <span>{{ category.items.length }} 个站点</span>
+        <button
+          v-if="canDeleteCategory"
+          class="delete-link"
+          type="button"
+          @click="emit('deleteCategory', category.id)"
+        >
+          删除分类
+        </button>
+      </div>
     </div>
 
     <div class="bookmark-grid">

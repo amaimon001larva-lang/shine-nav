@@ -19,6 +19,8 @@ import {
   readSortOrders,
   readUserCategories,
   removeUserBookmark,
+  removeUserCategory,
+  removeUserTag,
   saveSortOrders,
   saveUserCategories,
   type SortOrders,
@@ -55,6 +57,16 @@ const allTags = computed(() => {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
     .slice(0, 28)
     .map(([tag]) => tag);
+});
+const userCategoryIds = computed(() => new Set(userCategories.value.map((category) => category.id)));
+const userTags = computed(() => {
+  const tags = new Set<string>();
+  userCategories.value.forEach((category) => {
+    category.items.forEach((bookmark) => {
+      bookmark.tags?.forEach((tag) => tags.add(tag));
+    });
+  });
+  return Array.from(tags);
 });
 const hasSearchFilter = computed(() => Boolean(normalizedSearch.value));
 const showSortActions = computed(() => !normalizedSearch.value && selectedTags.value.length === 0);
@@ -114,6 +126,28 @@ function handleAddBookmark(input: UserBookmarkInput) {
 
 function handleDeleteBookmark(id: string) {
   persistUserCategories(removeUserBookmark(userCategories.value, id));
+}
+
+function handleDeleteCategory(categoryId: string) {
+  const category = categories.value.find((item) => item.id === categoryId);
+  if (!category) return;
+  const confirmed = window.confirm(`删除「${category.name}」分类中的本地书签？默认书签不会被删除。`);
+  if (!confirmed) return;
+
+  persistUserCategories(removeUserCategory(userCategories.value, categoryId));
+  const { [categoryId]: _removed, ...restSortOrders } = sortOrders.value;
+  persistSortOrders(restSortOrders);
+  if (activeCategoryId.value === categoryId) {
+    activeCategoryId.value = defaultCategories[0]?.id ?? '';
+  }
+}
+
+function handleDeleteTag(tag: string) {
+  const confirmed = window.confirm(`从所有本地书签中删除「${tag}」标签？`);
+  if (!confirmed) return;
+
+  persistUserCategories(removeUserTag(userCategories.value, tag));
+  selectedTags.value = selectedTags.value.filter((item) => item !== tag);
 }
 
 function handleMoveBookmark(categoryId: string, bookmarkId: string, direction: 'up' | 'down') {
@@ -293,7 +327,9 @@ onUnmounted(() => {
       <TagFilter
         :tags="allTags"
         :selected-tags="selectedTags"
+        :deletable-tags="userTags"
         @toggle="toggleTag"
+        @delete="handleDeleteTag"
         @clear="selectedTags = []"
       />
 
@@ -313,7 +349,9 @@ onUnmounted(() => {
               :key="category.id"
               :category="category"
               :show-sort-actions="showSortActions"
+              :can-delete-category="userCategoryIds.has(category.id)"
               @delete="handleDeleteBookmark"
+              @delete-category="handleDeleteCategory"
               @move-up="(categoryId, id) => handleMoveBookmark(categoryId, id, 'up')"
               @move-down="(categoryId, id) => handleMoveBookmark(categoryId, id, 'down')"
             />
