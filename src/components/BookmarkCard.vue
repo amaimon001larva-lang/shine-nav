@@ -20,7 +20,7 @@ const emit = defineEmits<{
     :draggable="editMode"
     @dragstart="emit('dragStart', bookmark.id)"
     @dragover.prevent
-    @drop.prevent="emit('drop', bookmark.id)"
+    @drop.stop.prevent="emit('drop', bookmark.id)"
   >
     <div v-if="editMode" class="drag-handle">拖拽排序</div>
     <div class="bookmark-card__top">

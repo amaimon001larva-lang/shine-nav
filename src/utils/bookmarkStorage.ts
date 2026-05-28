@@ -20,12 +20,14 @@ export interface BookmarkSettings {
   deletedBookmarkIds: string[];
   hiddenCategoryIds: string[];
   categoryNameOverrides: Record<string, string>;
+  bookmarkCategoryOverrides: Record<string, string>;
 }
 
 export const DEFAULT_SETTINGS: BookmarkSettings = {
   deletedBookmarkIds: [],
   hiddenCategoryIds: [],
   categoryNameOverrides: {},
+  bookmarkCategoryOverrides: {},
 };
 
 function cloneCategories(categories: BookmarkCategory[]) {
@@ -152,8 +154,42 @@ export function mergeCategories(
   defaultCategories: BookmarkCategory[],
   userCategories: BookmarkCategory[],
   sortOrders: SortOrders,
+  bookmarkCategoryOverrides: Record<string, string> = {},
 ) {
-  const merged: BookmarkCategory[] = cloneCategories(defaultCategories);
+  const merged: BookmarkCategory[] = cloneCategories(defaultCategories).map((category) => ({
+    ...category,
+    items: category.items.filter((bookmark) => bookmarkCategoryOverrides[bookmark.id] === undefined),
+  }));
+
+  Object.entries(bookmarkCategoryOverrides).forEach(([bookmarkId, targetCategoryId]) => {
+    const sourceCategory = defaultCategories.find((category) =>
+      category.items.some((bookmark) => bookmark.id === bookmarkId),
+    );
+    const bookmark = sourceCategory?.items.find((item) => item.id === bookmarkId);
+    const targetCategory =
+      merged.find((category) => category.id === targetCategoryId) ||
+      defaultCategories.find((category) => category.id === targetCategoryId);
+
+    if (!bookmark || !targetCategory) return;
+
+    const existing = merged.find((category) => category.id === targetCategory.id);
+    const movedBookmark = {
+      ...bookmark,
+      category: targetCategory.name,
+      sortOrder: Number.MAX_SAFE_INTEGER,
+    };
+
+    if (existing) {
+      existing.items.push(movedBookmark);
+    } else {
+      merged.push({
+        id: targetCategory.id,
+        name: targetCategory.name,
+        description: targetCategory.description || '',
+        items: [movedBookmark],
+      });
+    }
+  });
 
   userCategories.forEach((userCategory) => {
     const existing = merged.find((category) => category.id === userCategory.id);
@@ -221,6 +257,44 @@ export function removeUserBookmark(categories: BookmarkCategory[], bookmarkId: s
       items: category.items.filter((bookmark) => bookmark.id !== bookmarkId),
     }))
     .filter((category) => category.items.length > 0);
+}
+
+export function moveUserBookmarkToCategory(
+  categories: BookmarkCategory[],
+  bookmarkId: string,
+  targetCategoryId: string,
+  targetCategoryName: string,
+) {
+  const next = cloneCategories(categories);
+  let movedBookmark: BookmarkItem | null = null;
+
+  next.forEach((category) => {
+    const bookmarkIndex = category.items.findIndex((bookmark) => bookmark.id === bookmarkId);
+    if (bookmarkIndex >= 0) {
+      const [bookmark] = category.items.splice(bookmarkIndex, 1);
+      movedBookmark = {
+        ...bookmark,
+        category: targetCategoryName,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+  });
+
+  if (!movedBookmark) return next.filter((category) => category.items.length > 0);
+
+  const targetCategory = next.find((category) => category.id === targetCategoryId);
+  if (targetCategory) {
+    targetCategory.items.push(movedBookmark);
+  } else {
+    next.push({
+      id: targetCategoryId,
+      name: targetCategoryName,
+      description: '你保存到本地浏览器的书签分类',
+      items: [movedBookmark],
+    });
+  }
+
+  return next.filter((category) => category.items.length > 0);
 }
 
 export function removeUserCategory(categories: BookmarkCategory[], categoryId: string) {

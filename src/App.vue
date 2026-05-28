@@ -22,6 +22,7 @@ import {
   removeUserBookmark,
   removeUserCategory,
   removeUserTag,
+  moveUserBookmarkToCategory,
   renameUserCategory,
   saveSettings,
   saveSortOrders,
@@ -37,6 +38,7 @@ const settings = ref<BookmarkSettings>({
   deletedBookmarkIds: [],
   hiddenCategoryIds: [],
   categoryNameOverrides: {},
+  bookmarkCategoryOverrides: {},
 });
 const searchText = ref('');
 const activeCategoryId = ref(defaultCategories[0]?.id ?? '');
@@ -52,7 +54,12 @@ const selectedTags = ref<string[]>([]);
 
 const normalizedSearch = computed(() => searchText.value.trim().toLowerCase());
 const categories = computed(() => {
-  return mergeCategories(defaultCategories, userCategories.value, sortOrders.value)
+  return mergeCategories(
+    defaultCategories,
+    userCategories.value,
+    sortOrders.value,
+    settings.value.bookmarkCategoryOverrides,
+  )
     .filter((category) => !settings.value.hiddenCategoryIds.includes(category.id))
     .map((category) => ({
       ...category,
@@ -240,26 +247,73 @@ function handleDeleteTag(tag: string) {
   selectedTags.value = selectedTags.value.filter((item) => item !== tag);
 }
 
-function handleDropBookmark(categoryId: string, targetBookmarkId: string) {
+function writeDraggedBookmarkTarget(
+  sourceCategoryId: string,
+  targetCategoryId: string,
+  targetBookmarkId?: string,
+) {
   const dragged = draggedBookmark.value;
   draggedBookmark.value = null;
-  if (!dragged || dragged.categoryId !== categoryId || dragged.id === targetBookmarkId) return;
+  if (!dragged || dragged.id === targetBookmarkId) return;
 
-  const category = categories.value.find((item) => item.id === categoryId);
-  if (!category) return;
+  const sourceCategory = categories.value.find((category) => category.id === sourceCategoryId);
+  const targetCategory = categories.value.find((category) => category.id === targetCategoryId);
+  const draggedItem = sourceCategory?.items.find((bookmark) => bookmark.id === dragged.id);
+  if (!draggedItem || !targetCategory) return;
 
-  const ids = category.items.map((bookmark) => bookmark.id);
-  const currentIndex = ids.indexOf(dragged.id);
-  const targetIndex = ids.indexOf(targetBookmarkId);
-  if (currentIndex < 0 || targetIndex < 0 || targetIndex >= ids.length) return;
+  const existsInUser = userCategories.value.some((category) =>
+    category.items.some((bookmark) => bookmark.id === dragged.id),
+  );
+  if (existsInUser && sourceCategoryId !== targetCategoryId) {
+    persistUserCategories(
+      moveUserBookmarkToCategory(
+        userCategories.value,
+        dragged.id,
+        targetCategoryId,
+        targetCategory.name,
+      ),
+    );
+  }
 
-  const nextIds = [...ids];
-  const [movedId] = nextIds.splice(currentIndex, 1);
-  nextIds.splice(targetIndex, 0, movedId);
-  persistSortOrders({
-    ...sortOrders.value,
-    [categoryId]: nextIds,
-  });
+  if (!existsInUser && sourceCategoryId !== targetCategoryId) {
+    persistSettings({
+      ...settings.value,
+      bookmarkCategoryOverrides: {
+        ...settings.value.bookmarkCategoryOverrides,
+        [dragged.id]: targetCategoryId,
+      },
+    });
+  }
+
+  const targetIds = targetCategory.items
+    .map((bookmark) => bookmark.id)
+    .filter((id) => id !== dragged.id);
+  const insertIndex = targetBookmarkId ? targetIds.indexOf(targetBookmarkId) : targetIds.length;
+  if (insertIndex >= 0) {
+    targetIds.splice(insertIndex, 0, dragged.id);
+  } else {
+    targetIds.push(dragged.id);
+  }
+
+  const nextSortOrders = { ...sortOrders.value, [targetCategoryId]: targetIds };
+  if (sourceCategoryId !== targetCategoryId) {
+    const sourceCategory = categories.value.find((category) => category.id === sourceCategoryId);
+    if (sourceCategory) {
+      nextSortOrders[sourceCategoryId] = sourceCategory.items
+        .map((bookmark) => bookmark.id)
+        .filter((id) => id !== dragged.id);
+    }
+  }
+  persistSortOrders(nextSortOrders);
+}
+
+function handleDropBookmark(categoryId: string, targetBookmarkId: string) {
+  writeDraggedBookmarkTarget(draggedBookmark.value?.categoryId || categoryId, categoryId, targetBookmarkId);
+}
+
+function handleDropToCategoryEnd(categoryId: string) {
+  if (!draggedBookmark.value) return;
+  writeDraggedBookmarkTarget(draggedBookmark.value.categoryId, categoryId);
 }
 
 function handleDragStart(categoryId: string, id: string) {
@@ -466,6 +520,7 @@ onUnmounted(() => {
               @delete-category="handleDeleteCategory"
               @drag-start="handleDragStart"
               @drop="handleDropBookmark"
+              @drop-to-end="handleDropToCategoryEnd"
             />
           </template>
           <section v-else class="empty-state">

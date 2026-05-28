@@ -13,6 +13,7 @@ const emit = defineEmits<{
   deleteCategory: [categoryId: string];
   dragStart: [categoryId: string, id: string];
   drop: [categoryId: string, id: string];
+  dropToEnd: [categoryId: string];
 }>();
 </script>
 
@@ -36,7 +37,7 @@ const emit = defineEmits<{
       </div>
     </div>
 
-    <div class="bookmark-grid">
+    <div class="bookmark-grid" @dragover.prevent @drop.prevent="emit('dropToEnd', category.id)">
       <BookmarkCard
         v-for="bookmark in category.items"
         :key="bookmark.id"
