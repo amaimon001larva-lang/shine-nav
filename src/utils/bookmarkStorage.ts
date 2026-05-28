@@ -21,6 +21,7 @@ export interface BookmarkSettings {
   hiddenCategoryIds: string[];
   categoryNameOverrides: Record<string, string>;
   bookmarkCategoryOverrides: Record<string, string>;
+  layoutMode: 'default' | 'compact';
 }
 
 export const DEFAULT_SETTINGS: BookmarkSettings = {
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: BookmarkSettings = {
   hiddenCategoryIds: [],
   categoryNameOverrides: {},
   bookmarkCategoryOverrides: {},
+  layoutMode: 'default',
 };
 
 function cloneCategories(categories: BookmarkCategory[]) {
@@ -122,9 +124,11 @@ export function saveSortOrders(sortOrders: SortOrders) {
 }
 
 export function readSettings(): BookmarkSettings {
+  const stored = readJson<Partial<BookmarkSettings>>(SETTINGS_KEY, DEFAULT_SETTINGS);
   return {
     ...DEFAULT_SETTINGS,
-    ...readJson<Partial<BookmarkSettings>>(SETTINGS_KEY, DEFAULT_SETTINGS),
+    ...stored,
+    layoutMode: stored.layoutMode === 'compact' ? 'compact' : 'default',
   };
 }
 
@@ -257,6 +261,57 @@ export function removeUserBookmark(categories: BookmarkCategory[], bookmarkId: s
       items: category.items.filter((bookmark) => bookmark.id !== bookmarkId),
     }))
     .filter((category) => category.items.length > 0);
+}
+
+export function updateUserBookmark(
+  categories: BookmarkCategory[],
+  bookmarkId: string,
+  input: {
+    name: string;
+    url: string;
+    categoryId: string;
+    categoryName: string;
+    description: string;
+    tags: string[];
+    icon: string;
+  },
+) {
+  const next = cloneCategories(categories);
+  let updatedBookmark: BookmarkItem | null = null;
+
+  next.forEach((category) => {
+    const bookmarkIndex = category.items.findIndex((bookmark) => bookmark.id === bookmarkId);
+    if (bookmarkIndex >= 0) {
+      const url = normalizeUrl(input.url);
+      updatedBookmark = {
+        ...category.items[bookmarkIndex],
+        name: input.name.trim(),
+        url,
+        category: input.categoryName,
+        description: input.description.trim(),
+        tags: input.tags,
+        icon: input.icon.trim() || getFaviconUrl(url),
+        updatedAt: new Date().toISOString(),
+      };
+      category.items.splice(bookmarkIndex, 1);
+    }
+  });
+
+  if (!updatedBookmark) return next;
+
+  const targetCategory = next.find((category) => category.id === input.categoryId);
+  if (targetCategory) {
+    targetCategory.items.push(updatedBookmark);
+  } else {
+    next.push({
+      id: input.categoryId,
+      name: input.categoryName,
+      description: '你保存到本地浏览器的书签分类',
+      items: [updatedBookmark],
+    });
+  }
+
+  return next.filter((category) => category.items.length > 0);
 }
 
 export function moveUserBookmarkToCategory(

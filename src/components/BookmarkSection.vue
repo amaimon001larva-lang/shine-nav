@@ -10,6 +10,7 @@ defineProps<{
 
 const emit = defineEmits<{
   delete: [id: string];
+  edit: [bookmark: BookmarkCategory['items'][number]];
   deleteCategory: [categoryId: string];
   dragStart: [categoryId: string, id: string];
   drop: [categoryId: string, id: string];
@@ -44,6 +45,7 @@ const emit = defineEmits<{
         :bookmark="bookmark"
         :edit-mode="editMode"
         @delete="emit('delete', $event)"
+        @edit="emit('edit', $event)"
         @drag-start="emit('dragStart', category.id, $event)"
         @drop="emit('drop', category.id, $event)"
       />

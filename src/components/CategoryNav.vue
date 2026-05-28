@@ -16,7 +16,6 @@ const emit = defineEmits<{
 
 <template>
   <nav class="category-nav" aria-label="书签分类">
-    <button class="category-nav__add" type="button" @click="emit('add')">+ 新增分类</button>
     <div
       v-for="category in categories"
       :key="category.id"
@@ -32,5 +31,6 @@ const emit = defineEmits<{
         <button type="button" title="删除" @click="emit('delete', category.id)">删</button>
       </div>
     </div>
+    <button class="category-nav__add" type="button" @click="emit('add')">+ 新增分类</button>
   </nav>
 </template>

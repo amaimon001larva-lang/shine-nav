@@ -7,7 +7,7 @@ import AddBookmarkDialog from './components/AddBookmarkDialog.vue';
 import BookmarkImportPreview from './components/BookmarkImportPreview.vue';
 import TagFilter from './components/TagFilter.vue';
 import bookmarkData from './data/bookmarks.json';
-import type { BookmarkCategory, ChromeImportBookmark, UserBookmarkInput } from './types/bookmark';
+import type { BookmarkCategory, BookmarkItem, ChromeImportBookmark, UserBookmarkInput } from './types/bookmark';
 import { normalizeCategories } from './utils/bookmarkNormalize';
 import { parseChromeBookmarksHtml } from './utils/bookmarkParser';
 import {
@@ -27,6 +27,7 @@ import {
   saveSettings,
   saveSortOrders,
   saveUserCategories,
+  updateUserBookmark,
   type BookmarkSettings,
   type SortOrders,
 } from './utils/bookmarkStorage';
@@ -39,18 +40,41 @@ const settings = ref<BookmarkSettings>({
   hiddenCategoryIds: [],
   categoryNameOverrides: {},
   bookmarkCategoryOverrides: {},
+  layoutMode: 'default',
 });
 const searchText = ref('');
 const activeCategoryId = ref(defaultCategories[0]?.id ?? '');
 const editMode = ref(false);
 const draggedBookmark = ref<{ categoryId: string; id: string } | null>(null);
 const isAddDialogOpen = ref(false);
+const dialogMode = ref<'add' | 'edit'>('add');
+const editingBookmark = ref<BookmarkItem | null>(null);
 const importInput = ref<HTMLInputElement | null>(null);
 const chromeImportInput = ref<HTMLInputElement | null>(null);
 const isImportPreviewOpen = ref(false);
 const chromePreviewBookmarks = ref<ChromeImportBookmark[]>([]);
 const duplicateChromeUrls = ref<Set<string>>(new Set());
 const selectedTags = ref<string[]>([]);
+const featuredTags = [
+  '灵感',
+  '文档',
+  'Vue',
+  '地图',
+  '视觉',
+  '素材',
+  '图片',
+  '效率',
+  '协作',
+  '前端',
+  '设计工具',
+  '中文',
+  '组件',
+  'AI',
+  'GIS',
+  '3D',
+  '笔记',
+  '参考',
+];
 
 const normalizedSearch = computed(() => searchText.value.trim().toLowerCase());
 const categories = computed(() => {
@@ -84,8 +108,12 @@ const allTags = computed(() => {
   });
   return Array.from(counts.entries())
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
-    .slice(0, 28)
-    .map(([tag]) => tag);
+    .map(([tag]) => tag)
+    .reduce((result, tag) => {
+      if (!result.includes(tag)) result.push(tag);
+      return result;
+    }, [...featuredTags])
+    .slice(0, 32);
 });
 const userCategoryIds = computed(() => new Set(userCategories.value.map((category) => category.id)));
 const userTags = computed(() => {
@@ -147,6 +175,16 @@ function persistSettings(nextSettings: BookmarkSettings) {
 }
 
 function handleAddBookmark(input: UserBookmarkInput) {
+  if (dialogMode.value === 'edit' && editingBookmark.value) {
+    const nextCategories = updateUserBookmark(userCategories.value, editingBookmark.value.id, input);
+    persistUserCategories(nextCategories);
+    isAddDialogOpen.value = false;
+    activeCategoryId.value = input.categoryId;
+    editingBookmark.value = null;
+    requestAnimationFrame(() => scrollToCategory(input.categoryId));
+    return;
+  }
+
   const bookmark = buildUserBookmark(input);
   const nextCategories = addUserBookmark(
     userCategories.value,
@@ -159,6 +197,27 @@ function handleAddBookmark(input: UserBookmarkInput) {
   isAddDialogOpen.value = false;
   activeCategoryId.value = input.categoryId;
   requestAnimationFrame(() => scrollToCategory(input.categoryId));
+}
+
+function openAddDialog() {
+  dialogMode.value = 'add';
+  editingBookmark.value = null;
+  isAddDialogOpen.value = true;
+}
+
+function handleEditBookmark(bookmark: BookmarkItem) {
+  const existsInUser = userCategories.value.some((category) =>
+    category.items.some((item) => item.id === bookmark.id),
+  );
+
+  if (!existsInUser) {
+    window.alert('默认 JSON 中的书签暂不直接编辑。你可以先手动添加一条本地书签，再进行编辑。');
+    return;
+  }
+
+  dialogMode.value = 'edit';
+  editingBookmark.value = bookmark;
+  isAddDialogOpen.value = true;
 }
 
 function handleDeleteBookmark(id: string) {
@@ -322,6 +381,10 @@ function handleDragStart(categoryId: string, id: string) {
 
 function handleToggleLayout() {
   editMode.value = !editMode.value;
+  persistSettings({
+    ...settings.value,
+    layoutMode: editMode.value ? 'compact' : 'default',
+  });
   if (!editMode.value) {
     draggedBookmark.value = null;
   }
@@ -438,6 +501,7 @@ onMounted(() => {
   userCategories.value = readUserCategories();
   sortOrders.value = readSortOrders();
   settings.value = readSettings();
+  editMode.value = settings.value.layoutMode === 'compact';
   window.addEventListener('scroll', handleScroll, { passive: true });
 });
 
@@ -447,12 +511,12 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'is-edit-mode': editMode }">
     <HeaderSearch
       v-model="searchText"
       :user-bookmark-count="userBookmarkCount"
       :edit-mode="editMode"
-      @add="isAddDialogOpen = true"
+      @add="openAddDialog"
       @export="exportUserBookmarks"
       @import="openImportDialog"
       @import-chrome="openChromeImportDialog"
@@ -474,32 +538,10 @@ onUnmounted(() => {
     />
 
     <main>
-      <section class="hero-panel">
-        <p class="eyebrow">Personal Bookmark Hub</p>
-        <h2>我的设计、AI 与开发资源导航</h2>
-        <p>
-          把高频网站按工作流收进一个清爽入口，搜索、分类和访问都尽量保持轻量。
-        </p>
-        <div class="hero-meta">
-          <span>{{ categories.length }} 个分类</span>
-          <span>{{ visibleBookmarkCount }} 个站点</span>
-          <span>{{ userBookmarkCount }} 个本地新增</span>
-        </div>
-      </section>
-
-      <TagFilter
-        :tags="allTags"
-        :selected-tags="selectedTags"
-        :deletable-tags="userTags"
-        @toggle="toggleTag"
-        @delete="handleDeleteTag"
-        @clear="selectedTags = []"
-      />
-
       <div class="layout">
         <aside class="sidebar">
           <CategoryNav
-            :categories="filteredCategories"
+            :categories="categories"
             :active-category-id="activeCategoryId"
             @select="scrollToCategory"
             @add="handleAddCategory"
@@ -509,6 +551,28 @@ onUnmounted(() => {
         </aside>
 
         <div class="content-flow">
+          <section class="hero-panel">
+            <p class="eyebrow">Quiet Workspace</p>
+            <h2>VeilIndex</h2>
+            <p>
+              把高频网站按工作流收进一个清爽入口，搜索、分类和访问都尽量保持轻量。
+            </p>
+            <div class="hero-meta">
+              <span>{{ categories.length }} 个分类</span>
+              <span>{{ visibleBookmarkCount }} 个站点</span>
+              <span>{{ userBookmarkCount }} 个本地新增</span>
+            </div>
+          </section>
+
+          <TagFilter
+            :tags="allTags"
+            :selected-tags="selectedTags"
+            :deletable-tags="userTags"
+            @toggle="toggleTag"
+            @delete="handleDeleteTag"
+            @clear="selectedTags = []"
+          />
+
           <template v-if="filteredCategories.length">
             <BookmarkSection
               v-for="category in filteredCategories"
@@ -517,6 +581,7 @@ onUnmounted(() => {
               :edit-mode="editMode"
               :can-delete-category="true"
               @delete="handleDeleteBookmark"
+              @edit="handleEditBookmark"
               @delete-category="handleDeleteCategory"
               @drag-start="handleDragStart"
               @drop="handleDropBookmark"
@@ -533,7 +598,10 @@ onUnmounted(() => {
 
     <AddBookmarkDialog
       :open="isAddDialogOpen"
+      :mode="dialogMode"
       :categories="categories"
+      :available-tags="allTags"
+      :bookmark="editingBookmark"
       @close="isAddDialogOpen = false"
       @submit="handleAddBookmark"
     />

@@ -32,6 +32,10 @@ export interface UserBookmarkInput {
   icon: string;
 }
 
+export interface EditableBookmarkInput extends UserBookmarkInput {
+  id: string;
+}
+
 export interface ChromeImportBookmark extends BookmarkItem {
   categoryId: string;
   categoryName: string;

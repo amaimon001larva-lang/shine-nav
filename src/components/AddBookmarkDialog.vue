@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue';
-import type { BookmarkCategory, UserBookmarkInput } from '../types/bookmark';
+import { computed, reactive, ref, watch } from 'vue';
+import type { BookmarkCategory, BookmarkItem, UserBookmarkInput } from '../types/bookmark';
 import { createCategoryId, normalizeUrl } from '../utils/bookmarkStorage';
 import { fetchWebsiteInfo, getFaviconUrl, getHostname } from '../utils/favicon';
 
 const props = defineProps<{
   open: boolean;
+  mode: 'add' | 'edit';
   categories: BookmarkCategory[];
+  availableTags: string[];
+  bookmark?: BookmarkItem | null;
 }>();
 
 const emit = defineEmits<{
@@ -21,33 +24,53 @@ const form = reactive({
   categoryId: '',
   newCategoryName: '',
   description: '',
-  tags: '',
+  tags: [] as string[],
   icon: '',
+  newTag: '',
   fetchStatus: '',
   isFetching: false,
 });
 
+const isTagMenuOpen = ref(false);
+
 const categoryOptions = computed(() => props.categories);
+const title = computed(() => (props.mode === 'edit' ? '编辑网站' : '添加网站'));
+const subtitle = computed(() =>
+  props.mode === 'edit'
+    ? '仅更新当前浏览器的本地书签数据。默认书签请先导入或重新添加后再编辑。'
+    : '保存到当前浏览器的本地书签，不会写入默认 JSON。',
+);
 const canSubmit = computed(() => {
   const hasCategory =
     form.categoryMode === 'new' ? form.newCategoryName.trim() : form.categoryId.trim();
   return form.name.trim() && form.url.trim() && hasCategory;
+});
+const selectableTags = computed(() => {
+  const tags = new Set([...props.availableTags, ...form.tags]);
+  return Array.from(tags).sort((a, b) => a.localeCompare(b, 'zh-CN'));
 });
 
 watch(
   () => props.open,
   (isOpen) => {
     if (!isOpen) return;
-    form.name = '';
-    form.url = '';
+
+    const bookmark = props.bookmark;
+    form.name = bookmark?.name || '';
+    form.url = bookmark?.url || '';
     form.categoryMode = 'existing';
-    form.categoryId = props.categories[0]?.id ?? '';
+    form.categoryId =
+      props.categories.find((category) => category.name === bookmark?.category)?.id ||
+      props.categories[0]?.id ||
+      '';
     form.newCategoryName = '';
-    form.description = '';
-    form.tags = '';
-    form.icon = '';
+    form.description = bookmark?.description || '';
+    form.tags = [...(bookmark?.tags || [])];
+    form.icon = bookmark?.icon || '';
+    form.newTag = '';
     form.fetchStatus = '';
     form.isFetching = false;
+    isTagMenuOpen.value = false;
   },
 );
 
@@ -61,11 +84,17 @@ watch(
   },
 );
 
-function splitTags(value: string) {
-  return value
-    .split(',')
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+function toggleTag(tag: string) {
+  form.tags = form.tags.includes(tag)
+    ? form.tags.filter((item) => item !== tag)
+    : [...form.tags, tag];
+}
+
+function addNewTag() {
+  const tag = form.newTag.trim();
+  if (!tag) return;
+  if (!form.tags.includes(tag)) form.tags = [...form.tags, tag];
+  form.newTag = '';
 }
 
 function handleSubmit() {
@@ -87,7 +116,7 @@ function handleSubmit() {
     categoryId,
     categoryName,
     description: form.description,
-    tags: splitTags(form.tags),
+    tags: form.tags,
     icon: form.icon,
   });
 }
@@ -115,8 +144,8 @@ async function handleFetchInfo() {
       <form class="bookmark-dialog" @submit.prevent="handleSubmit">
         <div class="dialog-heading">
           <div>
-            <h2>添加网站</h2>
-            <p>保存到当前浏览器的本地书签，不会写入默认 JSON。</p>
+            <h2>{{ title }}</h2>
+            <p>{{ subtitle }}</p>
           </div>
           <button class="icon-button" type="button" aria-label="关闭" @click="emit('close')">
             ×
@@ -182,10 +211,43 @@ async function handleFetchInfo() {
             <textarea v-model="form.description" rows="3" placeholder="一句话说明它适合做什么" />
           </label>
 
-          <label class="field">
+          <div class="field">
             <span>标签</span>
-            <input v-model="form.tags" type="text" placeholder="设计, AI, 效率" />
-          </label>
+            <div class="tag-select" :class="{ 'is-open': isTagMenuOpen }">
+              <div
+                class="tag-select__control"
+                role="button"
+                tabindex="0"
+                @click="isTagMenuOpen = !isTagMenuOpen"
+                @keydown.enter.prevent="isTagMenuOpen = !isTagMenuOpen"
+              >
+                <span v-if="!form.tags.length" class="tag-select__placeholder">选择或新增标签</span>
+                <template v-else>
+                  <span v-for="tag in form.tags" :key="tag" class="tag-chip">
+                    {{ tag }}
+                    <button type="button" @click.stop="toggleTag(tag)">×</button>
+                  </span>
+                </template>
+                <span class="tag-select__arrow">⌄</span>
+              </div>
+              <div v-if="isTagMenuOpen" class="tag-select__menu">
+                <div class="tag-select__new">
+                  <input v-model="form.newTag" type="text" placeholder="新增标签" @keydown.enter.prevent="addNewTag" />
+                  <button type="button" @click="addNewTag">新增</button>
+                </div>
+                <button
+                  v-for="tag in selectableTags"
+                  :key="tag"
+                  class="tag-select__option"
+                  type="button"
+                  @click="toggleTag(tag)"
+                >
+                  <span>{{ tag }}</span>
+                  <span v-if="form.tags.includes(tag)">✓</span>
+                </button>
+              </div>
+            </div>
+          </div>
 
           <label class="field">
             <span>图标</span>

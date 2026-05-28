@@ -24,15 +24,20 @@ function selectImport(action: 'add' | 'import' | 'importChrome') {
   if (action === 'import') emit('import');
   if (action === 'importChrome') emit('importChrome');
 }
+
+function handleExport() {
+  isImportMenuOpen.value = false;
+  emit('export');
+}
 </script>
 
 <template>
   <header class="site-header">
     <div class="brand">
-      <div class="brand-mark">S</div>
+      <div class="brand-mark">V</div>
       <div>
-        <h1>Shine 导航</h1>
-        <p>设计、AI 与开发资源的个人书签入口</p>
+        <h1>VeilIndex</h1>
+        <p>夕雾 个人书签入口</p>
       </div>
     </div>
 
@@ -48,32 +53,27 @@ function selectImport(action: 'add' | 'import' | 'importChrome') {
       </label>
 
       <div class="toolbar-actions">
+        <button class="secondary-button" type="button" @click="emit('toggleLayout')">
+          {{ editMode ? '保存布局' : '调整布局' }}
+        </button>
         <div class="dropdown">
           <button
             class="secondary-button"
             type="button"
             @click="isImportMenuOpen = !isImportMenuOpen"
           >
-            导入网站
+            调整站点
+            <span aria-hidden="true">⌄</span>
           </button>
           <div v-if="isImportMenuOpen" class="dropdown-menu">
+            <button type="button" @click="selectImport('add')">添加网站</button>
             <button type="button" @click="selectImport('importChrome')">导入 Chrome 书签</button>
             <button type="button" @click="selectImport('import')">导入 JSON</button>
-            <button type="button" @click="selectImport('add')">添加网站</button>
+            <button type="button" :disabled="userBookmarkCount === 0" @click="handleExport">
+              导出 JSON
+            </button>
           </div>
         </div>
-        <button class="secondary-button" type="button" @click="emit('toggleLayout')">
-          {{ editMode ? '保存布局' : '调整布局' }}
-        </button>
-        <button
-          class="secondary-button"
-          type="button"
-          :disabled="userBookmarkCount === 0"
-          @click="emit('export')"
-        >
-          导出 JSON
-        </button>
-        <button class="primary-button" type="button" @click="emit('add')">添加网站</button>
       </div>
     </div>
   </header>
