@@ -9,6 +9,7 @@ const emit = defineEmits<{
   add: [];
   export: [];
   import: [];
+  importChrome: [];
 }>();
 </script>
 
@@ -34,6 +35,9 @@ const emit = defineEmits<{
       </label>
 
       <div class="toolbar-actions">
+        <button class="secondary-button" type="button" @click="emit('importChrome')">
+          导入 Chrome 书签
+        </button>
         <button class="secondary-button" type="button" @click="emit('import')">导入 JSON</button>
         <button
           class="secondary-button"

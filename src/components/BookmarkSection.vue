@@ -4,10 +4,13 @@ import BookmarkCard from './BookmarkCard.vue';
 
 defineProps<{
   category: BookmarkCategory;
+  showSortActions: boolean;
 }>();
 
 const emit = defineEmits<{
   delete: [id: string];
+  moveUp: [categoryId: string, id: string];
+  moveDown: [categoryId: string, id: string];
 }>();
 </script>
 
@@ -23,10 +26,15 @@ const emit = defineEmits<{
 
     <div class="bookmark-grid">
       <BookmarkCard
-        v-for="bookmark in category.items"
+        v-for="(bookmark, index) in category.items"
         :key="bookmark.id"
         :bookmark="bookmark"
+        :show-sort-actions="showSortActions"
+        :can-move-up="index > 0"
+        :can-move-down="index < category.items.length - 1"
         @delete="emit('delete', $event)"
+        @move-up="emit('moveUp', category.id, $event)"
+        @move-down="emit('moveDown', category.id, $event)"
       />
     </div>
   </section>

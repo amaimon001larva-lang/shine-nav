@@ -3,10 +3,15 @@ import type { BookmarkItem } from '../types/bookmark';
 
 defineProps<{
   bookmark: BookmarkItem;
+  showSortActions: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }>();
 
 const emit = defineEmits<{
   delete: [id: string];
+  moveUp: [id: string];
+  moveDown: [id: string];
 }>();
 </script>
 
@@ -26,7 +31,25 @@ const emit = defineEmits<{
       </div>
       <div class="card-actions">
         <button
-          v-if="bookmark.source === 'user'"
+          v-if="showSortActions"
+          class="move-link"
+          type="button"
+          :disabled="!canMoveUp"
+          @click="emit('moveUp', bookmark.id)"
+        >
+          上移
+        </button>
+        <button
+          v-if="showSortActions"
+          class="move-link"
+          type="button"
+          :disabled="!canMoveDown"
+          @click="emit('moveDown', bookmark.id)"
+        >
+          下移
+        </button>
+        <button
+          v-if="bookmark.source === 'manual' || bookmark.source === 'chrome-import'"
           class="delete-link"
           type="button"
           @click="emit('delete', bookmark.id)"

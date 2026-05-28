@@ -2,6 +2,7 @@
 import { computed, reactive, watch } from 'vue';
 import type { BookmarkCategory, UserBookmarkInput } from '../types/bookmark';
 import { createCategoryId, normalizeUrl } from '../utils/bookmarkStorage';
+import { fetchWebsiteInfo, getFaviconUrl, getHostname } from '../utils/favicon';
 
 const props = defineProps<{
   open: boolean;
@@ -22,6 +23,8 @@ const form = reactive({
   description: '',
   tags: '',
   icon: '',
+  fetchStatus: '',
+  isFetching: false,
 });
 
 const categoryOptions = computed(() => props.categories);
@@ -43,6 +46,18 @@ watch(
     form.description = '';
     form.tags = '';
     form.icon = '';
+    form.fetchStatus = '';
+    form.isFetching = false;
+  },
+);
+
+watch(
+  () => form.url,
+  (url) => {
+    const hostname = getHostname(url);
+    if (!hostname) return;
+    if (!form.name.trim()) form.name = hostname.replace(/^www\./, '');
+    if (!form.icon.trim()) form.icon = getFaviconUrl(url);
   },
 );
 
@@ -76,6 +91,22 @@ function handleSubmit() {
     icon: form.icon,
   });
 }
+
+async function handleFetchInfo() {
+  if (!form.url.trim() || form.isFetching) return;
+
+  form.isFetching = true;
+  form.fetchStatus = '';
+
+  const result = await fetchWebsiteInfo(form.url);
+  if (!form.name.trim() && result.title) form.name = result.title;
+  if (!form.description.trim() && result.description) form.description = result.description;
+  if (!form.icon.trim() && result.icon) form.icon = result.icon;
+
+  form.fetchStatus =
+    result.status === 'success' ? '已自动填充可读取的信息' : '无法自动获取，可手动填写';
+  form.isFetching = false;
+}
 </script>
 
 <template>
@@ -100,13 +131,24 @@ function handleSubmit() {
 
           <label class="field">
             <span>网站地址 *</span>
-            <input
-              v-model="form.url"
-              type="text"
-              inputmode="url"
-              placeholder="https://www.example.com"
-              required
-            />
+            <div class="url-field">
+              <input
+                v-model="form.url"
+                type="text"
+                inputmode="url"
+                placeholder="https://www.example.com"
+                required
+              />
+              <button
+                class="secondary-button"
+                type="button"
+                :disabled="!form.url.trim() || form.isFetching"
+                @click="handleFetchInfo"
+              >
+                {{ form.isFetching ? '获取中' : '自动获取信息' }}
+              </button>
+            </div>
+            <small v-if="form.fetchStatus" class="field-hint">{{ form.fetchStatus }}</small>
           </label>
 
           <div class="field field--full">

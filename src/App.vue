@@ -4,36 +4,62 @@ import HeaderSearch from './components/HeaderSearch.vue';
 import CategoryNav from './components/CategoryNav.vue';
 import BookmarkSection from './components/BookmarkSection.vue';
 import AddBookmarkDialog from './components/AddBookmarkDialog.vue';
+import BookmarkImportPreview from './components/BookmarkImportPreview.vue';
+import TagFilter from './components/TagFilter.vue';
 import bookmarkData from './data/bookmarks.json';
-import type { BookmarkCategory, UserBookmarkInput } from './types/bookmark';
+import type { BookmarkCategory, ChromeImportBookmark, UserBookmarkInput } from './types/bookmark';
+import { normalizeCategories } from './utils/bookmarkNormalize';
+import { parseChromeBookmarksHtml } from './utils/bookmarkParser';
 import {
+  addImportedBookmarks,
   addUserBookmark,
   buildUserBookmark,
   mergeCategories,
   parseImportedCategories,
+  readSortOrders,
   readUserCategories,
   removeUserBookmark,
+  saveSortOrders,
   saveUserCategories,
+  type SortOrders,
 } from './utils/bookmarkStorage';
 
-const defaultCategories = bookmarkData as BookmarkCategory[];
+const defaultCategories = normalizeCategories(bookmarkData as BookmarkCategory[], 'default');
 const userCategories = ref<BookmarkCategory[]>([]);
+const sortOrders = ref<SortOrders>({});
 const searchText = ref('');
 const activeCategoryId = ref(defaultCategories[0]?.id ?? '');
 const isAddDialogOpen = ref(false);
 const importInput = ref<HTMLInputElement | null>(null);
+const chromeImportInput = ref<HTMLInputElement | null>(null);
+const isImportPreviewOpen = ref(false);
+const chromePreviewBookmarks = ref<ChromeImportBookmark[]>([]);
+const duplicateChromeUrls = ref<Set<string>>(new Set());
+const selectedTags = ref<string[]>([]);
 
 const normalizedSearch = computed(() => searchText.value.trim().toLowerCase());
-const categories = computed(() => mergeCategories(defaultCategories, userCategories.value));
+const categories = computed(() =>
+  mergeCategories(defaultCategories, userCategories.value, sortOrders.value),
+);
 const userBookmarkCount = computed(() =>
   userCategories.value.reduce((total, category) => total + category.items.length, 0),
 );
+const allTags = computed(() => {
+  const counts = new Map<string, number>();
+  categories.value.forEach((category) => {
+    category.items.forEach((bookmark) => {
+      bookmark.tags?.forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1));
+    });
+  });
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-CN'))
+    .slice(0, 28)
+    .map(([tag]) => tag);
+});
+const hasSearchFilter = computed(() => Boolean(normalizedSearch.value));
+const showSortActions = computed(() => !normalizedSearch.value && selectedTags.value.length === 0);
 
 const filteredCategories = computed(() => {
-  if (!normalizedSearch.value) {
-    return categories.value;
-  }
-
   return categories.value
     .map((category) => {
       const items = category.items.filter((bookmark) => {
@@ -46,7 +72,10 @@ const filteredCategories = computed(() => {
           .join(' ')
           .toLowerCase();
 
-        return searchableText.includes(normalizedSearch.value);
+        const matchesSearch =
+          !normalizedSearch.value || searchableText.includes(normalizedSearch.value);
+        const matchesTags = selectedTags.value.every((tag) => bookmark.tags?.includes(tag));
+        return matchesSearch && matchesTags;
       });
 
       return { ...category, items };
@@ -61,6 +90,11 @@ const visibleBookmarkCount = computed(() =>
 function persistUserCategories(nextCategories: BookmarkCategory[]) {
   userCategories.value = nextCategories;
   saveUserCategories(nextCategories);
+}
+
+function persistSortOrders(nextSortOrders: SortOrders) {
+  sortOrders.value = nextSortOrders;
+  saveSortOrders(nextSortOrders);
 }
 
 function handleAddBookmark(input: UserBookmarkInput) {
@@ -82,6 +116,29 @@ function handleDeleteBookmark(id: string) {
   persistUserCategories(removeUserBookmark(userCategories.value, id));
 }
 
+function handleMoveBookmark(categoryId: string, bookmarkId: string, direction: 'up' | 'down') {
+  const category = categories.value.find((item) => item.id === categoryId);
+  if (!category) return;
+
+  const ids = category.items.map((bookmark) => bookmark.id);
+  const currentIndex = ids.indexOf(bookmarkId);
+  const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+  if (currentIndex < 0 || targetIndex < 0 || targetIndex >= ids.length) return;
+
+  const nextIds = [...ids];
+  [nextIds[currentIndex], nextIds[targetIndex]] = [nextIds[targetIndex], nextIds[currentIndex]];
+  persistSortOrders({
+    ...sortOrders.value,
+    [categoryId]: nextIds,
+  });
+}
+
+function toggleTag(tag: string) {
+  selectedTags.value = selectedTags.value.includes(tag)
+    ? selectedTags.value.filter((item) => item !== tag)
+    : [...selectedTags.value, tag];
+}
+
 function exportUserBookmarks() {
   const blob = new Blob([JSON.stringify(userCategories.value, null, 2)], {
     type: 'application/json;charset=utf-8',
@@ -96,6 +153,10 @@ function exportUserBookmarks() {
 
 function openImportDialog() {
   importInput.value?.click();
+}
+
+function openChromeImportDialog() {
+  chromeImportInput.value?.click();
 }
 
 function handleImport(event: Event) {
@@ -116,6 +177,41 @@ function handleImport(event: Event) {
     }
   };
   reader.readAsText(file);
+}
+
+function handleChromeImportFile(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const parsed = parseChromeBookmarksHtml(String(reader.result || ''));
+      const existingUrls = new Set(
+        categories.value.flatMap((category) => category.items.map((bookmark) => bookmark.url)),
+      );
+      chromePreviewBookmarks.value = parsed.bookmarks;
+      duplicateChromeUrls.value = new Set(
+        parsed.bookmarks
+          .filter((bookmark) => existingUrls.has(bookmark.url))
+          .map((bookmark) => bookmark.url),
+      );
+      isImportPreviewOpen.value = true;
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '导入失败，请检查 HTML 文件');
+    } finally {
+      input.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
+
+function handleConfirmChromeImport(bookmarks: ChromeImportBookmark[]) {
+  persistUserCategories(addImportedBookmarks(userCategories.value, bookmarks));
+  isImportPreviewOpen.value = false;
+  chromePreviewBookmarks.value = [];
+  duplicateChromeUrls.value = new Set();
 }
 
 function scrollToCategory(id: string) {
@@ -146,6 +242,7 @@ function handleScroll() {
 
 onMounted(() => {
   userCategories.value = readUserCategories();
+  sortOrders.value = readSortOrders();
   window.addEventListener('scroll', handleScroll, { passive: true });
 });
 
@@ -162,6 +259,7 @@ onUnmounted(() => {
       @add="isAddDialogOpen = true"
       @export="exportUserBookmarks"
       @import="openImportDialog"
+      @import-chrome="openChromeImportDialog"
     />
     <input
       ref="importInput"
@@ -169,6 +267,13 @@ onUnmounted(() => {
       type="file"
       accept="application/json,.json"
       @change="handleImport"
+    />
+    <input
+      ref="chromeImportInput"
+      class="visually-hidden"
+      type="file"
+      accept=".html,text/html"
+      @change="handleChromeImportFile"
     />
 
     <main>
@@ -185,6 +290,13 @@ onUnmounted(() => {
         </div>
       </section>
 
+      <TagFilter
+        :tags="allTags"
+        :selected-tags="selectedTags"
+        @toggle="toggleTag"
+        @clear="selectedTags = []"
+      />
+
       <div class="layout">
         <aside class="sidebar">
           <CategoryNav
@@ -200,7 +312,10 @@ onUnmounted(() => {
               v-for="category in filteredCategories"
               :key="category.id"
               :category="category"
+              :show-sort-actions="showSortActions"
               @delete="handleDeleteBookmark"
+              @move-up="(categoryId, id) => handleMoveBookmark(categoryId, id, 'up')"
+              @move-down="(categoryId, id) => handleMoveBookmark(categoryId, id, 'down')"
             />
           </template>
           <section v-else class="empty-state">
@@ -216,6 +331,13 @@ onUnmounted(() => {
       :categories="categories"
       @close="isAddDialogOpen = false"
       @submit="handleAddBookmark"
+    />
+    <BookmarkImportPreview
+      :open="isImportPreviewOpen"
+      :bookmarks="chromePreviewBookmarks"
+      :duplicate-urls="duplicateChromeUrls"
+      @close="isImportPreviewOpen = false"
+      @import="handleConfirmChromeImport"
     />
   </div>
 </template>

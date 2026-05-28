@@ -1,85 +1,142 @@
 import type { BookmarkCategory, BookmarkItem, UserBookmarkInput } from '../types/bookmark';
+import {
+  clearLegacyUserBookmarks,
+  readJson,
+  readLegacyUserBookmarks,
+  SORT_ORDERS_KEY,
+  USER_BOOKMARKS_KEY,
+  writeJson,
+} from './storage';
+import { createBookmarkId, createCategoryId, normalizeBookmark } from './bookmarkNormalize';
+import { getFaviconUrl } from './favicon';
+import { normalizeUrl } from './storage';
 
-const STORAGE_KEY = 'shine-nav:user-bookmarks';
+export { createCategoryId, normalizeUrl, getFaviconUrl };
 
-function createId(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, '')
-    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 48);
+export type SortOrders = Record<string, string[]>;
+
+function cloneCategories(categories: BookmarkCategory[]) {
+  return categories.map((category) => ({
+    ...category,
+    items: category.items.map((item) => ({ ...item })),
+  }));
 }
 
-export function createCategoryId(name: string) {
-  const id = createId(name);
-  return id ? `user-${id}` : `user-${Date.now()}`;
+function withSortedItems(category: BookmarkCategory, sortOrders: SortOrders) {
+  const explicitOrder = sortOrders[category.id];
+  const items = [...category.items];
+
+  if (!explicitOrder?.length) {
+    return {
+      ...category,
+      items: items.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)),
+    };
+  }
+
+  const orderIndex = new Map(explicitOrder.map((id, index) => [id, index]));
+  return {
+    ...category,
+    items: items.sort((a, b) => {
+      const left = orderIndex.get(a.id);
+      const right = orderIndex.get(b.id);
+      if (left !== undefined && right !== undefined) return left - right;
+      if (left !== undefined) return -1;
+      if (right !== undefined) return 1;
+      return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+    }),
+  };
 }
 
-export function normalizeUrl(url: string) {
-  const value = url.trim();
-  if (!value) return '';
-  return /^https?:\/\//i.test(value) ? value : `https://${value}`;
-}
+function migrateLegacyCategories() {
+  const legacyValue = readLegacyUserBookmarks();
+  if (!legacyValue || localStorage.getItem(USER_BOOKMARKS_KEY)) return;
 
-export function getFaviconUrl(url: string) {
   try {
-    const hostname = new URL(normalizeUrl(url)).hostname;
-    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
+    const parsed = JSON.parse(legacyValue) as BookmarkCategory[];
+    if (!Array.isArray(parsed)) return;
+    const migrated = parsed.map((category) => ({
+      ...category,
+      items: category.items.map((item, index) =>
+        normalizeBookmark(
+          { ...item, source: undefined },
+          category.name,
+          item.source === 'chrome-import' ? 'chrome-import' : 'manual',
+          index,
+        ),
+      ),
+    }));
+    writeJson(USER_BOOKMARKS_KEY, migrated);
+    clearLegacyUserBookmarks();
   } catch {
-    return '';
+    // Keep the legacy value untouched if it cannot be parsed.
   }
 }
 
 export function readUserCategories(): BookmarkCategory[] {
-  try {
-    const rawValue = localStorage.getItem(STORAGE_KEY);
-    if (!rawValue) return [];
-    const parsed = JSON.parse(rawValue) as BookmarkCategory[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((category) => ({
-      ...category,
-      items: Array.isArray(category.items)
-        ? category.items.map((item) => ({ ...item, source: 'user' }))
-        : [],
-    }));
-  } catch {
-    return [];
-  }
+  migrateLegacyCategories();
+  const categories = readJson<BookmarkCategory[]>(USER_BOOKMARKS_KEY, []);
+  if (!Array.isArray(categories)) return [];
+
+  return categories.map((category) => ({
+    id: String(category.id),
+    name: String(category.name),
+    description: String(category.description || '你保存到本地浏览器的书签分类'),
+    items: Array.isArray(category.items)
+      ? category.items.map((item, index) =>
+          normalizeBookmark(
+            item,
+            category.name,
+            item.source === 'chrome-import' ? 'chrome-import' : 'manual',
+            index,
+          ),
+        )
+      : [],
+  }));
 }
 
 export function saveUserCategories(categories: BookmarkCategory[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
+  writeJson(USER_BOOKMARKS_KEY, categories);
+}
+
+export function readSortOrders(): SortOrders {
+  return readJson<SortOrders>(SORT_ORDERS_KEY, {});
+}
+
+export function saveSortOrders(sortOrders: SortOrders) {
+  writeJson(SORT_ORDERS_KEY, sortOrders);
 }
 
 export function buildUserBookmark(input: UserBookmarkInput): BookmarkItem {
   const url = normalizeUrl(input.url);
-  const idSeed = `${input.name}-${url}-${Date.now()}`;
+  const now = new Date().toISOString();
 
   return {
-    id: `user-${createId(idSeed) || Date.now()}`,
+    id: createBookmarkId('manual', url, input.name),
     name: input.name.trim(),
     url,
+    category: input.categoryName,
     description: input.description.trim(),
     icon: input.icon.trim() || getFaviconUrl(url),
     tags: input.tags,
-    source: 'user',
+    sortOrder: Number.MAX_SAFE_INTEGER,
+    source: 'manual',
+    createdAt: now,
   };
 }
 
 export function mergeCategories(
   defaultCategories: BookmarkCategory[],
   userCategories: BookmarkCategory[],
+  sortOrders: SortOrders,
 ) {
-  const merged: BookmarkCategory[] = defaultCategories.map((category) => ({
-    ...category,
-    items: category.items.map((item) => ({ ...item, source: 'default' as const })),
-  }));
+  const merged: BookmarkCategory[] = cloneCategories(defaultCategories);
 
   userCategories.forEach((userCategory) => {
     const existing = merged.find((category) => category.id === userCategory.id);
-    const userItems = userCategory.items.map((item) => ({ ...item, source: 'user' as const }));
+    const userItems = userCategory.items.map((item, index) => ({
+      ...item,
+      sortOrder: item.sortOrder ?? index,
+    }));
 
     if (existing) {
       existing.items = [...existing.items, ...userItems];
@@ -89,12 +146,12 @@ export function mergeCategories(
     merged.push({
       id: userCategory.id,
       name: userCategory.name,
-      description: userCategory.description || '你手动添加的个人书签分类',
+      description: userCategory.description || '你保存到本地浏览器的书签分类',
       items: userItems,
     });
   });
 
-  return merged;
+  return merged.map((category) => withSortedItems(category, sortOrders));
 }
 
 export function addUserBookmark(
@@ -103,28 +160,38 @@ export function addUserBookmark(
   categoryName: string,
   bookmark: BookmarkItem,
 ) {
-  const next = categories.map((category) => ({
-    ...category,
-    items: [...category.items],
-  }));
+  const next = cloneCategories(categories);
   const existing = next.find((category) => category.id === categoryId);
 
   if (existing) {
-    existing.items.push(bookmark);
+    existing.items.push({ ...bookmark, sortOrder: existing.items.length });
   } else {
     next.push({
       id: categoryId,
       name: categoryName,
-      description: '你手动添加的个人书签分类',
-      items: [bookmark],
+      description: '你保存到本地浏览器的书签分类',
+      items: [{ ...bookmark, sortOrder: 0 }],
     });
   }
 
   return next;
 }
 
+export function addImportedBookmarks(
+  categories: BookmarkCategory[],
+  bookmarks: Array<BookmarkItem & { categoryId: string; categoryName: string }>,
+) {
+  let next = cloneCategories(categories);
+
+  bookmarks.forEach((bookmark) => {
+    next = addUserBookmark(next, bookmark.categoryId, bookmark.categoryName, bookmark);
+  });
+
+  return next;
+}
+
 export function removeUserBookmark(categories: BookmarkCategory[], bookmarkId: string) {
-  return categories
+  return cloneCategories(categories)
     .map((category) => ({
       ...category,
       items: category.items.filter((bookmark) => bookmark.id !== bookmarkId),
@@ -146,16 +213,15 @@ export function parseImportedCategories(value: string): BookmarkCategory[] {
     return {
       id: String(category.id),
       name: String(category.name),
-      description: String(category.description || '你手动添加的个人书签分类'),
-      items: category.items.map((item) => ({
-        id: String(item.id || `user-${Date.now()}`),
-        name: String(item.name || ''),
-        url: normalizeUrl(String(item.url || '')),
-        description: String(item.description || ''),
-        icon: String(item.icon || getFaviconUrl(String(item.url || ''))),
-        tags: Array.isArray(item.tags) ? item.tags.map(String) : [],
-        source: 'user' as const,
-      })),
+      description: String(category.description || '你保存到本地浏览器的书签分类'),
+      items: category.items.map((item, index) =>
+        normalizeBookmark(
+          item,
+          category.name,
+          item.source === 'chrome-import' ? 'chrome-import' : 'manual',
+          index,
+        ),
+      ),
     };
   });
 }

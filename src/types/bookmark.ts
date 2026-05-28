@@ -1,11 +1,18 @@
+export type BookmarkSource = 'default' | 'manual' | 'chrome-import';
+
 export interface BookmarkItem {
   id: string;
   name: string;
   url: string;
-  description: string;
-  icon: string;
+  category?: string;
+  description?: string;
+  icon?: string;
   tags: string[];
-  source?: 'default' | 'user';
+  sortOrder?: number;
+  source?: BookmarkSource;
+  createdAt?: string;
+  updatedAt?: string;
+  path?: string[];
 }
 
 export interface BookmarkCategory {
@@ -23,4 +30,16 @@ export interface UserBookmarkInput {
   description: string;
   tags: string[];
   icon: string;
+}
+
+export interface ChromeImportBookmark extends BookmarkItem {
+  categoryId: string;
+  categoryName: string;
+  source: 'chrome-import';
+}
+
+export interface ChromeImportPreview {
+  bookmarks: ChromeImportBookmark[];
+  duplicateUrls: Set<string>;
+  categoryCount: number;
 }
