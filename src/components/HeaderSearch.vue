@@ -63,7 +63,7 @@ function handleExport() {
             @click="isImportMenuOpen = !isImportMenuOpen"
           >
             调整站点
-            <span aria-hidden="true">⌄</span>
+            <span class="button-chevron" aria-hidden="true"></span>
           </button>
           <div v-if="isImportMenuOpen" class="dropdown-menu">
             <button type="button" @click="selectImport('add')">添加网站</button>
